@@ -1,2 +1,1 @@
-obj-m += basicmod.o
-include $(PWD)/../../Makefile.kmod
+obj-m := hello.o
