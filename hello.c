@@ -1,94 +1,109 @@
 /*
- * Basic kernel module using a timer and GPIOs to flash a LED.
+ * "Hello, world!" minimal kernel module - /dev version
  *
- * Author:
- * 	Stefan Wendler (devnull@kaltpost.de)
- *
- * This software is licensed under the terms of the GNU General Public
- * License version 2, as published by the Free Software Foundation, and
- * may be copied, distributed, and modified under those terms.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * Valerie Henson <val@nmt.edu>
  *
  */
 
-#include <linux/module.h>
-#include <linux/kernel.h>
-#include <linux/sched.h>
-#include <linux/timer.h>
+#include <linux/fs.h>
 #include <linux/init.h>
-#include <linux/gpio.h>
+#include <linux/miscdevice.h>
+#include <linux/module.h>
 
-#define LED1	4
-
-static struct timer_list blink_timer;
+#include <asm/uaccess.h>
 
 /*
- * Timer function called periodically
+ * hello_read is the function called when a process calls read() on
+ * /dev/hello.  It writes "Hello, world!" to the buffer passed in the
+ * read() call.
  */
-static void blink_timer_func(unsigned long data)
+
+static ssize_t hello_read(struct file * file, char * buf,
+			  size_t count, loff_t *ppos)
 {
-	printk(KERN_INFO "%s\n", __func__);
+	char *hello_str = "Hello, world!\n";
+	int len = strlen(hello_str); /* Don't include the null byte. */
+	/*
+	 * We only support reading the whole string at once.
+	 */
+	if (count < len)
+		return -EINVAL;
+	/*
+	 * If file position is non-zero, then assume the string has
+	 * been read and indicate there is no more data to be read.
+	 */
+	if (*ppos != 0)
+		return 0;
+	/*
+	 * Besides copying the string to the user provided buffer,
+	 * this function also checks that the user has permission to
+	 * write to the buffer, that it is mapped, etc.
+	 */
+	if (copy_to_user(buf, hello_str, len))
+		return -EINVAL;
+	/*
+	 * Tell the user how much data we wrote.
+	 */
+	*ppos = len;
 
-	gpio_set_value(LED1, data);
-
-	/* schedule next execution */
-	blink_timer.data = !data;						// makes the LED toggle
-	blink_timer.expires = jiffies + (1*HZ); 		// 1 sec.
-	add_timer(&blink_timer);
+	return len;
 }
 
 /*
- * Module init function
+ * The only file operation we care about is read.
  */
-static int __init gpiomod_init(void)
+
+static const struct file_operations hello_fops = {
+	.owner		= THIS_MODULE,
+	.read		= hello_read,
+};
+
+static struct miscdevice hello_dev = {
+	/*
+	 * We don't care what minor number we end up with, so tell the
+	 * kernel to just pick one.
+	 */
+	MISC_DYNAMIC_MINOR,
+	/*
+	 * Name ourselves /dev/hello.
+	 */
+	"hello",
+	/*
+	 * What functions to call when a program performs file
+	 * operations on the device.
+	 */
+	&hello_fops
+};
+
+static int __init
+hello_init(void)
 {
-	int ret = 0;
+	int ret;
 
-	printk(KERN_INFO "%s\n", __func__);
-
-	// register, turn off
-	ret = gpio_request_one(LED1, GPIOF_OUT_INIT_LOW, "led1");
-
-	if (ret) {
-		printk(KERN_ERR "Unable to request GPIOs: %d\n", ret);
-		return ret;
-	}
-
-	/* init timer, add timer function */
-	init_timer(&blink_timer);
-
-	blink_timer.function = blink_timer_func;
-	blink_timer.data = 1L;							// initially turn LED on
-	blink_timer.expires = jiffies + (1*HZ); 		// 1 sec.
-	add_timer(&blink_timer);
+	/*
+	 * Create the "hello" device in the /sys/class/misc directory.
+	 * Udev will automatically create the /dev/hello device using
+	 * the default rules.
+	 */
+	ret = misc_register(&hello_dev);
+	if (ret)
+		printk(KERN_ERR
+		       "Unable to register \"Hello, world!\" misc device\n");
 
 	return ret;
 }
 
-/*
- * Module exit function
- */
-static void __exit gpiomod_exit(void)
+module_init(hello_init);
+
+static void __exit
+hello_exit(void)
 {
-	printk(KERN_INFO "%s\n", __func__);
-
-	// deactivate timer if running
-	del_timer_sync(&blink_timer);
-
-	// turn LED off
-	gpio_set_value(LED1, 0);
-
-	// unregister GPIO
-	gpio_free(LED1);
+	misc_deregister(&hello_dev);
 }
 
-MODULE_LICENSE("GPL");
-MODULE_AUTHOR("Stefan Wendler");
-MODULE_DESCRIPTION("Basic kernel module using a timer and GPIOs to flash a LED.");
+module_exit(hello_exit);
 
-module_init(gpiomod_init);
-module_exit(gpiomod_exit);
+MODULE_LICENSE("GPL");
+MODULE_AUTHOR("Valerie Henson <val@nmt.edu>");
+MODULE_DESCRIPTION("\"Hello, world!\" minimal module");
+MODULE_VERSION("dev");
