@@ -1,9 +1,9 @@
-#include <linux/fs.h>
 #include <linux/init.h>
-#include <linux/miscdevice.h>
 #include <linux/module.h>
-#include <linux/time.h>
 #include <linux/kernel.h>
+#include <linux/fs.h>
+#include <linux/miscdevice.h>
+#include <linux/time.h>
 #include <linux/gpio.h>
 #include <linux/interrupt.h>
 #include <asm/uaccess.h>
@@ -22,7 +22,17 @@ static int16_t b_t, s_t;
 static int16_t b_h, s_h;
 static int16_t b_p;
 
-uint8_t crc8(uint8_t *buffer, uint8_t size) {
+static uint64_t getUs(void) {
+	struct timespec tv;
+	uint64_t us;
+	getnstimeofday(&tv);
+	us = tv.tv_sec;
+	us *= 1000000;
+	us += (tv.tv_nsec/1000);
+	return us;
+}
+
+static uint8_t crc8(uint8_t *buffer, uint8_t size) {
 
 	uint8_t	 crc = 0;
 	uint8_t loop_count;
@@ -56,13 +66,8 @@ uint8_t crc8(uint8_t *buffer, uint8_t size) {
 }
 
 static irqreturn_t rnts_isr(int irq, void *data) {
-	struct timespec tv;
-	uint64_t ts;
 
-	getnstimeofday(&tv);
-	ts = tv.tv_sec;
-	ts *= 1000000;
-	ts += (tv.tv_nsec/1000);
+	uint64_t ts = getUs();
 
 	if(gpio_get_value(RNTS_INPUT) == 0) {
 		last = ts;
@@ -159,7 +164,6 @@ static ssize_t rnts_read(struct file * file, char * buf, size_t count, loff_t *p
 	 * Tell the user how much data we wrote.
 	 */
 	*ppos = len;
-
 	return len;
 }
 
@@ -176,6 +180,7 @@ static struct miscdevice rnts_dev = {
 };
 
 static int __init rnts_init(void) {
+
 	int ret = misc_register(&rnts_dev);
 
 	if(ret) printk(KERN_ERR "Unable to register rnts misc device\n");
@@ -197,6 +202,7 @@ static void __exit rnts_exit(void) {
 	gpio_free(RNTS_INPUT);
 	misc_deregister(&rnts_dev);
 }
+
 
 module_init(rnts_init);
 module_exit(rnts_exit);
