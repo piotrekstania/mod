@@ -8,7 +8,23 @@
 #include <linux/interrupt.h>
 #include <asm/uaccess.h>
 
-#define RNTS_INPUT		21
+	#define RNTS_INPUT		21
+
+	//START 2000 us
+	#define START_MIN		1850
+	#define START_MAX		2150
+
+	//STOP 3000 us
+	#define STOP_MIN		2850
+	#define STOP_MAX		3150
+
+	//BIT 0 - 300us
+	#define BIT0_MIN		150
+	#define BIT0_MAX		450
+
+	//BIT 1 - 600 us
+	#define BIT1_MIN		450
+	#define BIT1_MAX		750
 
 static uint32_t frames = 0;
 static uint32_t incomplete = 0;
@@ -76,7 +92,7 @@ static irqreturn_t rnts_isr(int irq, void *data) {
 	} else {
 		ts -= last;
 
-		if((ts > 200) && (ts < 400)) {
+		if((ts > BIT0_MIN) && (ts < BIT0_MAX)) {
 			//bit 0 - najczęściej
 			rnts_buf[byte] &= ~(1<<bit++);
 			if(bit == 8) {
@@ -84,17 +100,17 @@ static irqreturn_t rnts_isr(int irq, void *data) {
 				byte++;
 				if(byte == 0) byte = 0;
 			}
-		} else if((ts > 500) && (ts < 700)) {
+		} else if((ts > BIT1_MIN) && (ts < BIT1_MAX)) {
 			rnts_buf[byte] |= (1<<bit++);
 			if(bit == 8) {
 				bit = 0;
 				byte++;
 				if(byte == 0) byte = 0;
 			}
-		} else if((ts > 1900) && (ts < 2100)) {
+		} else if((ts > START_MIN) && (ts < START_MAX)) {
 			bit = 0;
 			byte = 0;
-		} else if((ts > 2900) && (ts < 3100)) {
+		} else if((ts > STOP_MIN) && (ts < STOP_MAX)) {
 			frames++;
 
 			if(bit != 0) {
