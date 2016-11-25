@@ -50,34 +50,24 @@ static uint64_t getUs(void) {
 
 static uint8_t crc8(uint8_t *buffer, uint8_t size) {
 
-	uint8_t	 crc = 0;
+	uint8_t crc = 0;
 	uint8_t loop_count;
-	uint8_t  bit_counter;
-	uint8_t  data;
-	uint8_t  feedback_bit;
+	uint8_t bit_counter;
+	uint8_t data;
+	uint8_t feedback_bit;
 
-	for (loop_count = 0; loop_count != size; loop_count++)
-	{
+	for (loop_count = 0; loop_count != size; loop_count++) {
 		data = buffer[loop_count];
-
 		bit_counter = 8;
 		do {
 			feedback_bit = (crc ^ data) & 0x01;
-
-			if ( feedback_bit == 0x01 ) {
-				crc = crc ^ 0x18;	             //0X18 = X^8+X^5+X^4+X^0
-			}
+			if(feedback_bit == 0x01) crc = crc ^ 0x18;
 			crc = (crc >> 1) & 0x7F;
-			if ( feedback_bit == 0x01 ) {
-				crc = crc | 0x80;
-			}
-
+			if(feedback_bit == 0x01) crc = crc | 0x80;
 			data = data >> 1;
 			bit_counter--;
-
-		} while (bit_counter > 0);
+		} while(bit_counter > 0);
 	}
-
 	return crc;
 }
 
@@ -144,11 +134,7 @@ static irqreturn_t rnts_isr(int irq, void *data) {
 			b_p |= rnts_buf[13];
 
 		}
-
-
 	}
-
-
 	return IRQ_HANDLED;
 }
 
